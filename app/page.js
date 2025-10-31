@@ -1,66 +1,105 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useState } from "react";
+import axios from "axios";
 
 export default function Home() {
+  const [file, setFile] = useState(null);
+  const [type, setType] = useState("pdf-to-word");
+  const [loading, setLoading] = useState(false);
+  const [downloadUrl, setDownloadUrl] = useState("");
+
+  const backendURL = "http://72.60.78.58:4000"; // ← apna VPS IP yahan likh
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) return alert("Please select a file!");
+
+    setLoading(true);
+    setDownloadUrl("");
+
+    try {
+      const formData = new FormData();
+
+      if (type === "image-to-pdf") {
+        formData.append("images", file);
+      } else {
+        formData.append("file", file);
+      }
+
+      const res = await axios.post(`${backendURL}/convert/${type}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      if (res.data.success) {
+        setDownloadUrl(`${backendURL}/${res.data.download}`);
+      } else {
+        alert("Conversion failed!");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-xl p-6">
+        <h1 className="text-2xl font-bold text-center mb-4">📄 File Converter</h1>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* File type selection */}
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="border p-2 w-full rounded"
+          >
+            <option value="pdf-to-word">PDF → Word</option>
+            <option value="word-to-pdf">Word → PDF</option>
+            <option value="image-to-pdf">Image → PDF</option>
+          </select>
+
+          {/* File upload */}
+          <input
+            type="file"
+            onChange={(e) => setFile(e.target.files[0])}
+            accept={
+              type === "image-to-pdf"
+                ? "image/*"
+                : type === "pdf-to-word"
+                ? "application/pdf"
+                : ".doc,.docx"
+            }
+            className="border p-2 w-full rounded"
+          />
+
+          {/* Submit button */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          >
+            {loading ? "Converting..." : "Convert Now"}
+          </button>
+        </form>
+
+        {/* Download link */}
+        {downloadUrl && (
+          <div className="mt-4 text-center">
+            <p className="text-green-600 font-semibold">✅ Conversion Complete!</p>
             <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+              href={downloadUrl}
               target="_blank"
               rel="noopener noreferrer"
+              className="text-blue-500 underline"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+              Download File
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
