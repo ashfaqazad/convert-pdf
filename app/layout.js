@@ -25,3 +25,310 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// import express from "express";
+// import cors from "cors";
+// import multer from "multer";
+// import fs from "fs-extra";
+// import path from "path";
+// import { fileURLToPath } from "url";
+// import { exec } from "child_process";
+// import compression from "compression";
+// import sharp from "sharp";
+
+// const app = express();
+// app.use(cors());
+// app.use(compression());
+// const PORT = 4000;
+
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = path.dirname(__filename);
+
+// // Ensure folders exist
+// const uploadDir = path.join(__dirname, "uploads");
+// const convertedDir = path.join(__dirname, "converted");
+// fs.ensureDirSync(uploadDir);
+// fs.ensureDirSync(convertedDir);
+
+// // Multer setup with file filter and size limit
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => cb(null, uploadDir),
+//   filename: (req, file, cb) => cb(null, Date.now() + "-" + file.originalname),
+// });
+// const upload = multer({
+//   storage,
+//   fileFilter: (req, file, cb) => {
+//     const allowedTypes = {
+//       "/convert/pdf-to-word": ["application/pdf"],
+//       "/convert/word-to-pdf": [
+//         "application/msword",
+//         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+//       ],
+//       "/convert/image-to-pdf": ["image/jpeg", "image/png"],
+//     };
+//     const route = req.originalUrl;
+//     if (allowedTypes[route]?.includes(file.mimetype)) {
+//       cb(null, true);
+//     } else {
+//       cb(new Error(`Invalid file type for ${route}. Allowed types: ${allowedTypes[route].join(", ")}`), false);
+//     }
+//   },
+//   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+// });
+
+// // Serve uploads for debugging
+// app.use("/uploads", express.static(uploadDir, {
+//   setHeaders: (res, path) => {
+//     res.setHeader("Content-Type", "application/pdf");
+//     res.setHeader("Content-Disposition", `attachment; filename="${path.split("/").pop()}"`);
+//   }
+// }));
+
+// // Serve converted files
+// app.use("/converted", (req, res, next) => {
+//   console.log("Request for:", req.url);
+//   next();
+// }, express.static(convertedDir, {
+//   setHeaders: (res, path) => {
+//     res.setHeader("Content-Disposition", `attachment; filename="${path.split("/").pop()}"`);
+//     res.setHeader("Content-Type", path.endsWith(".pdf") ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+//   }
+// }));
+
+// // Root route
+// app.get("/", (req, res) => {
+//   res.send("✅ PDF Converter API is running successfully!");
+// });
+
+// // PDF → Word
+// app.post("/convert/pdf-to-word", upload.single("file"), async (req, res) => {
+//   try {
+//     if (!req.file) throw new Error("No file uploaded");
+//     const inputPath = req.file.path;
+//     const inputFileName = path.basename(inputPath, path.extname(inputPath));
+//     const outputFile = `${Date.now()}-converted.docx`;
+//     const outputPath = path.join(convertedDir, outputFile);
+//     console.log("PDF→Word Input:", inputPath, "Expected Output:", outputPath);
+
+//     // Check file integrity
+//     const fileType = await new Promise((resolve) => {
+//       exec(`file "${inputPath}"`, (err, stdout) => resolve(err ? "unknown" : stdout));
+//     });
+//     console.log("File Type:", fileType);
+//     if (!fileType.includes("PDF document")) {
+//       fs.unlinkSync(inputPath);
+//       return res.status(400).json({ error: "Invalid or corrupt PDF file" });
+//     }
+
+//     // Try unoconv
+//     const unoconvCommand = `unoconv -f docx -o "${outputPath}" "${inputPath}"`;
+//     console.log("Executing unoconv command:", unoconvCommand);
+//     exec(unoconvCommand, (unoconvError, unoconvStdout, unoconvStderr) => {
+//       console.log("unoconv Stdout:", unoconvStdout);
+//       console.log("unoconv Stderr:", unoconvStderr);
+//       if (unoconvError || !fs.existsSync(outputPath)) {
+//         console.error("unoconv Error:", unoconvError);
+
+//         // Fallback: soffice
+//         const sofficeOutputFile = path.join(convertedDir, `${inputFileName}.docx`);
+//         const sofficeCommand = `/usr/bin/soffice --headless --convert-to docx "${inputPath}" --outdir "${convertedDir}"`;
+//         console.log("Falling back to soffice command:", sofficeCommand);
+//         exec(sofficeCommand, (error, stdout, stderr) => {
+//           console.log("soffice Stdout:", stdout);
+//           console.log("soffice Stderr:", stderr);
+//           if (error || !fs.existsSync(sofficeOutputFile)) {
+//             console.error("soffice Error:", error);
+
+//             // Fallback: OCR with pdftoppm + tesseract
+//             console.log("Falling back to OCR...");
+//             const ocrImage = path.join(convertedDir, `${inputFileName}_ocr.png`);
+//             const ocrOutput = path.join(convertedDir, `${inputFileName}_ocr.txt`);
+//             const pdftoppmCommand = `pdftoppm -png -f 1 -l 1 "${inputPath}" "${convertedDir}/${inputFileName}_ocr"`;
+//             console.log("Executing pdftoppm command:", pdftoppmCommand);
+//             exec(pdftoppmCommand, (pdftoppmError, pdftoppmStdout, pdftoppmStderr) => {
+//               if (pdftoppmError || !fs.existsSync(ocrImage)) {
+//                 console.error("pdftoppm Error:", pdftoppmError, "Stderr:", pdftoppmStderr);
+//                 fs.unlinkSync(inputPath); // Clean up
+//                 return res.status(500).json({
+//                   error: `Conversion failed. unoconv: ${unoconvStderr || 'N/A'}, soffice: ${stderr || 'N/A'}, pdftoppm: ${pdftoppmStderr || 'N/A'}. Try a text-based PDF.`
+//                 });
+//               }
+//               const tesseractCommand = `tesseract "${ocrImage}" "${ocrOutput.replace('.txt', '')}" -l eng`;
+//               console.log("Executing tesseract command:", tesseractCommand);
+//               exec(tesseractCommand, async (tesseractError, tesseractStdout, tesseractStderr) => {
+//                 if (tesseractError || !fs.existsSync(ocrOutput)) {
+//                   console.error("tesseract Error:", tesseractError, "Stderr:", tesseractStderr);
+//                   fs.unlinkSync(inputPath); // Clean up
+//                   fs.unlinkSync(ocrImage); // Clean up
+//                   return res.status(500).json({
+//                     error: `Conversion failed. unoconv: ${unoconvStderr || 'N/A'}, soffice: ${stderr || 'N/A'}, tesseract: ${tesseractStderr || 'N/A'}. Try a text-based PDF.`
+//                   });
+//                 }
+//                 // Convert text to DOCX
+//                 const { Document, Packer, Paragraph } = await import("docx");
+//                 const doc = new Document({
+//                   sections: [{ children: [new Paragraph(fs.readFileSync(ocrOutput, "utf8"))] }],
+//                 });
+//                 const docxBuffer = await Packer.toBuffer(doc);
+//                 fs.writeFileSync(outputPath, docxBuffer);
+//                 fs.unlinkSync(inputPath); // Clean up
+//                 fs.unlinkSync(ocrImage); // Clean up
+//                 fs.unlinkSync(ocrOutput); // Clean up
+//                 return res.json({
+//                   success: true,
+//                   download: `/converted/${outputFile}`,
+//                 });
+//               });
+//             });
+//           } else {
+//             fs.renameSync(sofficeOutputFile, outputPath);
+//             fs.unlinkSync(inputPath); // Clean up
+//             return res.json({
+//               success: true,
+//               download: `/converted/${outputFile}`,
+//             });
+//           }
+//         });
+//       } else {
+//         fs.unlinkSync(inputPath); // Clean up
+//         return res.json({
+//           success: true,
+//           download: `/converted/${outputFile}`,
+//         });
+//       }
+//     });
+//   } catch (error) {
+//     console.error("❌ PDF→Word Error:", error);
+//     if (req.file && fs.existsSync(req.file.path)) {
+//       fs.unlinkSync(req.file.path); // Clean up
+//     }
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Word → PDF
+// app.post("/convert/word-to-pdf", upload.single("file"), async (req, res) => {
+//   try {
+//     if (!req.file) throw new Error("No file uploaded");
+//     const inputPath = req.file.path;
+//     const inputFileName = path.basename(inputPath, path.extname(inputPath));
+//     const outputFile = `${Date.now()}-converted.pdf`;
+//     const outputPath = path.join(convertedDir, outputFile);
+//     const sofficeOutputFile = path.join(convertedDir, `${inputFileName}.pdf`);
+//     console.log("Word→PDF Input:", inputPath, "Output:", outputPath);
+//     const command = `/usr/bin/soffice --headless --convert-to pdf "${inputPath}" --outdir "${convertedDir}"`;
+//     console.log("Executing command:", command);
+//     exec(command, (error, stdout, stderr) => {
+//       if (error) {
+//         console.error("soffice Error:", error, "Stderr:", stderr);
+//         fs.unlinkSync(inputPath); // Clean up
+//         return res.status(500).json({ error: `Conversion failed: ${error.message}. Stderr: ${stderr}` });
+//       }
+//       console.log("soffice Stdout:", stdout);
+//       if (fs.existsSync(sofficeOutputFile)) {
+//         fs.renameSync(sofficeOutputFile, outputPath);
+//         fs.unlinkSync(inputPath); // Clean up
+//         if (fs.existsSync(outputPath)) {
+//           return res.json({
+//             success: true,
+//             download: `/converted/${outputFile}`,
+//           });
+//         } else {
+//           return res.status(500).json({ error: "Failed to rename output file" });
+//         }
+//       } else {
+//         fs.unlinkSync(inputPath); // Clean up
+//         return res.status(500).json({ error: "Output file not found" });
+//       }
+//     });
+//   } catch (error) {
+//     console.error("❌ Word→PDF Error:", error);
+//     if (req.file && fs.existsSync(req.file.path)) {
+//       fs.unlinkSync(req.file.path); // Clean up
+//     }
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Image(s) → PDF
+// app.post("/convert/image-to-pdf", upload.array("images", 10), async (req, res) => {
+//   try {
+//     if (!req.files || req.files.length === 0) throw new Error("No images uploaded");
+//     const { PDFDocument } = await import("pdf-lib");
+//     const pdfDoc = await PDFDocument.create();
+//     for (const file of req.files) {
+//       // Compress image using sharp
+//       const compressedImage = await sharp(file.path)
+//         .resize({ width: 800, withoutEnlargement: true })
+//         .jpeg({ quality: 80 })
+//         .toBuffer();
+//       let img;
+//       if (file.mimetype === "image/jpeg") {
+//         img = await pdfDoc.embedJpg(compressedImage);
+//       } else if (file.mimetype === "image/png") {
+//         img = await pdfDoc.embedPng(compressedImage);
+//       } else {
+//         fs.unlinkSync(file.path); // Clean up
+//         throw new Error(`Unsupported image format: ${file.mimetype}`);
+//       }
+//       const maxWidth = 595; // A4 width
+//       const maxHeight = 842; // A4 height
+//       const scale = Math.min(maxWidth / img.width, maxHeight / img.height, 0.5);
+//       const page = pdfDoc.addPage([img.width * scale, img.height * scale]);
+//       page.drawImage(img, { x: 0, y: 0, width: img.width * scale, height: img.height * scale });
+//       fs.unlinkSync(file.path); // Clean up
+//     }
+//     const pdfBytes = await pdfDoc.save({ useObjectStreams: false });
+//     const outputFile = `${Date.now()}-images.pdf`;
+//     const outputPath = path.join(convertedDir, outputFile);
+//     await fs.writeFile(outputPath, pdfBytes);
+//     if (fs.existsSync(outputPath)) {
+//       console.log("Image→PDF Output:", outputPath, "Size:", fs.statSync(outputPath).size);
+//       return res.json({
+//         success: true,
+//         download: `/converted/${outputFile}`,
+//       });
+//     } else {
+//       return res.status(500).json({ error: "Output file not found" });
+//     }
+//   } catch (error) {
+//     console.error("❌ Image→PDF Error:", error);
+//     req.files?.forEach((file) => fs.unlinkSync(file.path)); // Clean up
+//     return res.status(500).json({ error: error.message });
+//   }
+// });
+
+// // Global error catcher
+// app.use((err, req, res, next) => {
+//   console.error("🔥 Global Error:", err);
+//   return res.status(500).json({ error: err.message });
+// });
+
+// app.listen(PORT, "0.0.0.0", () => {
+//   console.log(`🚀 Server running on http://72.60.78.58:${PORT}`);
+// });
